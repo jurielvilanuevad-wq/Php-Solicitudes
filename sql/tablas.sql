@@ -1,0 +1,116 @@
+create database solicitudes;
+use solicitudes;
+
+-- Tabla para definir y almacenar los roles de los usuarios en el sistema (Solicitante, Trabajador y Administrador)
+create table rol(
+    id_rol int auto_increment,
+    nombre varchar(50) not null,
+    primary key(id_rol)
+);
+
+-- Tabla para definir y almacenar las areas de la institucion
+create table area(
+    id_area int auto_increment,
+    nombre varchar(50) not null unique,
+    primary key(id_area)
+);
+
+-- Tabla que almacena los datos del usuario y, si corresponde, su rol y estado como trabajador.
+create table usuario(
+    id_us int auto_increment,
+    nombre varchar(50) not null, # INDICE ORDINARIO (nombre, app, apm)
+    app varchar(50) not null,
+    apm varchar(50),
+    username varchar(50) not null unique,
+    contrasena varchar(255) not null,
+    id_rol int not null,
+    disponible boolean default true, # INDICE ORDINARIO
+    id_area int not null,
+    primary key(id_us),
+    foreign key(id_rol) references rol(id_rol) on update cascade,
+    foreign key(id_area) references area(id_area) on update cascade
+);
+
+
+-- Tabla para definir los estados en los que se puede encontrar una solicitud (Pendiente, En Proceso, Finalizada)
+create table estado_solicitud(
+    id_estado int auto_increment,
+    nombre varchar(20) not null,
+    primary key(id_estado)
+);
+
+-- Tabla que almacena los detalles de una solicitud enviada por un solicitante
+create table solicitud(
+    id_sol int auto_increment,
+    id_us int not null,
+    id_estado int not null default 1,
+    encabezado varchar(255) not null,
+    descripcion text not null,
+    prioridad enum('Baja','Media','Alta') not null, # INDICE ORDINARIO
+    fecha_creacion datetime default current_timestamp, # INDICE ORDINARIO
+    primary key(id_sol),
+    foreign key(id_us) references usuario(id_us)
+        on delete cascade,
+    foreign key(id_estado) references estado_solicitud(id_estado)
+);
+
+-- Tabla que relaciona una solicitud con el trabajador a la que fue asignada
+create table asignacion(
+    id_asg int auto_increment,
+    id_sol int not null,
+    id_trabajador int not null,
+    estado_asignacion ENUM('activa','cancelada','completada') default 'activa', # INDICE ORDINARIO
+    fecha_inicio datetime default current_timestamp, # INDICE ORDINARIO (inicio-fin)
+    fecha_fin datetime,
+    primary key(id_asg),
+    foreign key(id_sol) references solicitud(id_sol) on delete cascade,
+    foreign key(id_trabajador) references usuario(id_us)
+);
+
+-- Tabla que almacena las notificaciones de los usuarios
+create table notificacion(
+    id_not int auto_increment,
+    id_us int not null,
+    id_sol int,
+    mensaje text not null, # INDICE TEXTO COMPLETO
+    fecha_envio datetime default current_timestamp,
+    primary key(id_not),
+    foreign key(id_us) references usuario(id_us)
+        on delete cascade,
+    foreign key(id_sol) references solicitud(id_sol)
+        on delete cascade
+);
+
+
+-- Tabla que almacena los detalles y evidencias de una solicitud tras ser finalizada
+create table bitacora(
+    id_bit int auto_increment,
+    id_sol int not null,
+    id_us int not null,
+    clasificacion enum('Soporte tecnico', 'Mantenimiento correctivo', 'Mantenimiento preventivo') not null, # INDICE ORDINARIO
+    encabezado varchar(50) not null,
+    descripcion text not null, # INDICE TEXTO COMPLETO
+    evidencia varchar(255),
+    fecha_registro datetime default current_timestamp, # INDICE ORDINARIO
+    primary key(id_bit),
+    foreign key(id_sol) references solicitud(id_sol)
+        on delete cascade,
+    foreign key(id_us) references usuario(id_us)
+);
+
+-- Adicion de los checks
+alter table notificacion
+add constraint chk_mensaje
+check (length(mensaje) > 0);
+
+alter table bitacora
+add constraint chk_bit_desc
+check (length(descripcion) > 10);
+
+alter table solicitud
+add constraint chk_sol_desc
+check (length(descripcion) > 10);
+
+alter table usuario
+add constraint len_contrasena
+check (length(contrasena) >= 8);
