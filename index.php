@@ -1,6 +1,8 @@
-<!-- Comentario temporal -->
-<!-- Usar crearADMIN.php después de crear la base de datos y poner los datos correctos en conexion.php -->
-<!-- Solo entonces será posible ingresar a crear más usuarios desde la interfaz del Administrador -->
+<?php
+    session_start();
+    include "php/conexion.php";
+    include "php/controlador_login.php";
+?>
 
 <!DOCTYPE html>
 <html lang="es">
@@ -15,11 +17,6 @@
     <div class="login-contenedor">
         <!-- max-width 420px -->
         <div class="login-tarjeta">
-
-            <?php 
-                include "php/conexion.php";
-                include "php/controlador_login.php";
-            ?>
 
             <div class="login-logo">
                 <div class="marca-emblema"><img src="img/logo_tec_.png" alt="logo del Instituto Tecnológico Superior de Rioverde" width="48"></div>
