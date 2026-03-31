@@ -1,4 +1,3 @@
-<!-- PHP -->
 <?php
 session_start();
 if (empty($_SESSION["id"]) || !is_numeric($_SESSION["id"]) || $_SESSION["id_rol"] != 3) {
