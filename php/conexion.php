@@ -1,11 +1,6 @@
 <?php
 
-$conexion=new mysqli(
-    getenv('MYSQLHOST'),
-    getenv('MYSQLUSER'),
-    getenv('MYSQLPASSWORD'),
-    getenv('MYSQLDATABASE')
-);
+$conexion=new mysqli("mysql.railway.internal","root","mZUjUViLXfUTyZEEpysTMgcKGxpfQlzb","railway");
 
 $conexion->set_charset("utf8");
 
