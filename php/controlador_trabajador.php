@@ -105,15 +105,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && !empty($_POST["accion"])) {
         }
         $evidencia = implode(",", $rutas) ?: null;
     }
-    $carpeta = "../uploads/evidencias/";
-    die(json_encode([
-        "carpeta_existe"    => is_dir($carpeta),
-        "carpeta_escribible"=> is_writable($carpeta),
-        "files_recibidos"   => $_FILES["fotos"]["name"] ?? "ninguno",
-        "evidencia_valor"   => $evidencia,
-        "id_sol"            => $id_sol,
-        "encabezado"        => $encabezado
-    ]));
+    
     // 3.- Insertar en bitacora
     $stmt = $conexion->prepare(
         "INSERT INTO bitacora (id_sol, id_us, encabezado, descripcion_problema, descripcion_solucion, evidencia)
