@@ -1,5 +1,5 @@
 <?php
-    session_start()
+    session_start();
     include "php/conexion.php";
     include "php/controlador_login.php";
 ?>
