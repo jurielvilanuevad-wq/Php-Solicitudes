@@ -1,5 +1,4 @@
 <?php
-session_start();
 if (!empty($_POST["btn-iniciar-sesion"])) {
     if (!empty($_POST["username"]) and !empty($_POST["password"])) {
         
