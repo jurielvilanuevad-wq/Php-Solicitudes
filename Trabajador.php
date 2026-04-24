@@ -1,4 +1,5 @@
 <?php
+//Comprobación de sesión
 session_start();
 if (empty($_SESSION["id"]) || !is_numeric($_SESSION["id"]) || $_SESSION["id_rol"] != 2) {
     header("Location: index.php");
@@ -13,14 +14,14 @@ require_once "php/conexion.php";
 
 //  Trae solicitudes si la solicitud es id_estado = 1 (pendientes).
 $stmtSolicitudes = $conexion->prepare(
-    "SELECT s.id_sol, s.encabezado, s.descripcion, s.prioridad, s.fecha_creacion,
+    "SELECT s.id_sol, s.encabezado, s.descripcion, s.prioridad, s.fecha_creacion, s.fecha_limite,
             e.nombre AS estado,
             u.nombre AS solicitante_nombre, u.app AS solicitante_app,
             a.nombre AS area
     FROM solicitud s
     JOIN estado_solicitud e ON s.id_estado = e.id_estado
     JOIN usuario u ON s.id_us = u.id_us
-    JOIN area a ON u.id_area = a.id_area
+    JOIN area a ON s.id_area = a.id_area
     WHERE s.id_estado = 1
     ORDER BY s.fecha_creacion DESC"
 );
@@ -28,6 +29,36 @@ $stmtSolicitudes->execute();
 $solicitudes = $stmtSolicitudes->get_result();
 $totalSolicitudes = $solicitudes->num_rows;
 $stmtSolicitudes->close();
+
+// Trae las asignaciones activas y completadas del trabajador
+$stmtAsignaciones = $conexion->prepare(
+    "SELECT a.id_asg, a.id_sol, a.estado_asignacion, a.fecha_inicio, a.fecha_fin,
+            s.encabezado, s.prioridad, s.id_estado,
+            ar.nombre AS area
+     FROM asignacion a
+     JOIN solicitud s ON a.id_sol = s.id_sol
+     JOIN area ar ON s.id_area = ar.id_area
+     WHERE a.id_trabajador = ?
+       AND a.estado_asignacion != 'cancelada'
+     ORDER BY a.estado_asignacion ASC, a.fecha_inicio DESC"
+);
+$stmtAsignaciones->bind_param("i", $_SESSION["id"]);
+$stmtAsignaciones->execute();
+$asignaciones = $stmtAsignaciones->get_result();
+$totalAsignaciones = $asignaciones->num_rows;
+$stmtAsignaciones->close();
+$listaActivas     = [];
+$listaRevision    = [];
+$listaCompletadas = [];
+while ($a = $asignaciones->fetch_object()) {
+    if ($a->estado_asignacion === 'activa' && $a->id_estado == 4) {
+        $listaRevision[] = $a;
+    } elseif ($a->estado_asignacion === 'activa') {
+        $listaActivas[] = $a;
+    } else {
+        $listaCompletadas[] = $a;
+    }
+}
 ?>
 
 <!-- HTML -->
@@ -72,6 +103,13 @@ $stmtSolicitudes->close();
                     <span class="nav-contador"><?= $totalSolicitudes ?></span>
                 <?php endif; ?>
             </a>
+            <a href="#" class="nav-link nav-item" data-section="mis-asignaciones">
+                Solicitudes Aceptadas
+                <?php $totalActivas = count($listaActivas) + count($listaRevision); ?>
+                <?php if ($totalActivas > 0): ?>
+                    <span class="nav-contador"><?= $totalActivas ?></span>
+                <?php endif; ?>
+            </a>
             <a href="#" class="nav-link nav-item" data-section="reporte">Reporte de Solicitud</a>
             <a href="#" class="nav-link nav-item" data-section="notificaciones">Notificaciones</a>
         </nav>
@@ -107,7 +145,7 @@ $stmtSolicitudes->close();
 
                     <div class="tarjeta">
                         <div class="tarjeta-encabezado">
-                            <div class="tarjeta-titulo">Solicitudes disponibles</div>
+                            <div class="tarjeta-titulo">Solicitudes Disponibles</div>
                         </div>
                         <div style="padding: 12px;">
                             <?php if ($totalSolicitudes === 0): ?>
@@ -120,6 +158,7 @@ $stmtSolicitudes->close();
                                         $prioridad   = strtolower($s->prioridad);
                                         $solicitante = htmlspecialchars($s->solicitante_nombre . " " . $s->solicitante_app);
                                         $fecha       = date("d/m/Y", strtotime($s->fecha_creacion));
+                                        $fechalimite = date("d/m/Y", strtotime($s->fecha_limite));
                                     ?>
                                     <div class="tarjeta-solicitud solicitud-item" data-id="<?= $s->id_sol ?>">
                                         <div class="barra-prioridad <?= $prioridad ?>"></div>
@@ -130,7 +169,8 @@ $stmtSolicitudes->close();
                                             <div class="solicitud-meta">
                                                 <span><strong>Usuario:</strong> <?= $solicitante ?></span>
                                                 <span><strong>Área:</strong> <?= htmlspecialchars($s->area) ?></span>
-                                                <span><strong>Fecha:</strong> <?= $fecha ?></span>
+                                                <span><strong>Fecha de publicación:</strong> <?= $fecha ?></span>
+                                                <span><strong>Fecha límite:</strong> <?= $fechalimite ?></span>
                                             </div>
                                             <p style="font-size:12px; margin-top:5px; color:#4d5a7a;">
                                                 <?= htmlspecialchars($s->descripcion) ?>
@@ -139,11 +179,9 @@ $stmtSolicitudes->close();
                                                 <strong>Estado:</strong> <?= htmlspecialchars($s->estado) ?>
                                             </p>
                                         </div>
-                                        <!-- Botones principales que se ocultan al aceptar o rechazar -->
+                                        <!-- Botones principales que se ocultan al aceptar -->
                                         <div class="solicitud-acciones buttons">
-                                            <button class="btn btn-exito btn-pequeno" onclick="aceptarSolicitud(this, <?= $s->id_sol ?>)">Aceptar</button>
-                                            <button class="btn btn-peligro btn-pequeno" onclick="rechazarSolicitud(this, <?= $s->id_sol ?>)">Rechazar</button>
-                                            <button class="btn btn-advertencia btn-pequeno postpone">Posponer</button>
+                                            <button class="btn btn-exito btn-mediano" onclick="aceptarSolicitud(this, <?= $s->id_sol ?>)">Aceptar</button>
                                         </div>
                                         <!-- Botones post-decisión que están ocultos hasta que se acepte o rechace -->
                                         <div class="cancel-btn" style="display:none; gap:6px;">
@@ -157,56 +195,6 @@ $stmtSolicitudes->close();
                         </div>
                     </div>
 
-                    <!-- Por parte del panel lateral se encuentran notificaciones y recientes -->
-                    <div class="columna-derecha">
-                        <div class="tarjeta">
-                            <div class="tarjeta-encabezado">
-                                <div class="tarjeta-titulo">Notificaciones</div>
-                            </div>
-                            <!-- .no-leida hace referencia a las notificaciones que en teoría aun no se abren/leen -->
-                            <div class="item-notificacion no-leida">
-                                <span class="indicador-notificacion no-leida"></span>
-                                <div>
-                                    <div class="notificacion-mensaje">Nueva solicitud disponible — #666</div>
-                                    <div class="notificacion-hora">hace 8 minutos</div>
-                                </div>
-                            </div>
-                            <div class="item-notificacion no-leida">
-                                <span class="indicador-notificacion no-leida"></span>
-                                <div>
-                                    <div class="notificacion-mensaje">Nueva solicitud disponible — #667</div>
-                                    <div class="notificacion-hora">hace 22 minutos</div>
-                                </div>
-                            </div>
-                            <div class="item-notificacion">
-                                <span class="indicador-notificacion leida"></span>
-                                <div>
-                                    <div class="notificacion-mensaje">#123 marcada como completada</div>
-                                    <div class="notificacion-hora">hace 2 horas</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="tarjeta">
-                            <div class="tarjeta-encabezado">
-                                <div class="tarjeta-titulo">Recientes</div>
-                            </div>
-                            <div class="item-historial">
-                                <div>
-                                    <div class="historial-titulo">Mouse sin respuesta — Dirección</div>
-                                    <div class="historial-meta">Dirección General · 14 min</div>
-                                </div>
-                                <span class="etiqueta etiqueta-completada">Completada</span>
-                            </div>
-                            <div class="item-historial">
-                                <div>
-                                    <div class="historial-titulo">PC lenta en biblioteca</div>
-                                    <div class="historial-meta">Servicios · 31 min</div>
-                                </div>
-                                <span class="etiqueta etiqueta-completada">Completada</span>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -222,24 +210,47 @@ $stmtSolicitudes->close();
                             <p>Selecciona una solicitud aceptada para generar el reporte.</p>
                         </div>
                         <div id="report-form">
-                            <h3 style="margin-bottom:16px; font-size:14px;">Generar Reporte para: <span id="report-title"></span>
-                            </h3>
-                            <form action="#" method="post" enctype="multipart/form-data">
-                                <!-- Se pre-rellena desde crearReporte() -->
+                            <form id="form-reporte" action="php/controlador_trabajador.php" method="POST"
+                                enctype="multipart/form-data">
+                                <input type="hidden" name="accion" value="reporte">
+                                
+                                <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+                                    <h3 style="font-size:14px; margin:0;">Generar Reporte para:</h3>
+                                    <select class="campo-form" id="select-solicitud-reporte" name="id_sol"
+                                            style="width:auto; min-width:200px;">
+                                        <option value="" disabled selected>— Seleccionar Solicitud —</option>
+                                        <?php foreach ($listaActivas as $a): ?>
+                                            <option value="<?= $a->id_sol ?>">
+                                                <?= htmlspecialchars($a->encabezado) ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+
                                 <div class="grupo-form">
                                     <label class="etiqueta-form" for="titulo-reporte">Título del reporte</label>
-                                    <input class="campo-form" type="text" id="titulo-reporte" name="titulo-reporte" placeholder="Ingresa el título" required>
+                                    <input class="campo-form" type="text" id="titulo-reporte"
+                                        name="encabezado" placeholder="Ingresa el título de tu reporte" required>
                                 </div>
-                                <!-- Se pre-rellena desde crearReporte() -->
+
                                 <div class="grupo-form">
-                                    <label class="etiqueta-form" for="descripcion-reporte">Descripción (problema y solución)</label>
-                                    <textarea class="campo-form" id="descripcion-reporte" name="descripcion-reporte" rows="4" placeholder="Describe el problema y la solución" required></textarea>
+                                    <label class="etiqueta-form" for="desc-problema">Descripción del problema</label>
+                                    <textarea class="campo-form" id="desc-problema" name="descripcion_problema"
+                                            rows="4" placeholder="Describe el problema detalladamente" required></textarea>
                                 </div>
-                                <!-- El atributo multiple permite que se puedan subir más de una fotografía/evidencia -->
+
+                                <div class="grupo-form">
+                                    <label class="etiqueta-form" for="desc-solucion">Solución</label>
+                                    <textarea class="campo-form" id="desc-solucion" name="descripcion_solucion"
+                                            rows="4" placeholder="Describe la solución detalladamente" required></textarea>
+                                </div>
+
                                 <div class="grupo-form">
                                     <label class="etiqueta-form" for="fotos">Subir fotografías (evidencia)</label>
-                                    <input class="campo-form" type="file" id="fotos" name="fotos" multiple accept="image/*">
+                                    <input class="campo-form" type="file" id="fotos" name="fotos[]"
+                                        multiple accept="image/*">
                                 </div>
+
                                 <button type="submit" class="btn btn-primario">Guardar Reporte</button>
                             </form>
                         </div>
@@ -258,11 +269,222 @@ $stmtSolicitudes->close();
                     </div>
                 </div>
             </div>
+            
+            <!-- SOLICITUDES ACEPTADAS -->
+            <div id="mis-asignaciones" class="section" style="display:none;">
+                <div class="tarjeta">
+                    <div class="tarjeta-encabezado">
+                        <div class="tarjeta-titulo">Solicitudes Aceptadas</div>
+                    </div>
 
+                    <?php if ($totalAsignaciones === 0): ?>
+                        <div class="tarjeta-cuerpo">
+                            <p style="color:#8f98b2; text-align:center;">No tienes asignaciones activas.</p>
+                        </div>
+                    <?php else: ?>
+
+                        <!-- ACTIVAS -->
+                        <?php if (!empty($listaActivas)): ?>
+                            <div style="padding: 12px 16px 4px;">
+                                <p style="font-size:11px; font-weight:700; color:#8f98b2; text-transform:uppercase; letter-spacing:1px;">
+                                    Activas
+                                </p>
+                            </div>
+                            <div class="contenedor-tabla">
+                                <table style="table-layout:fixed; width:100%">
+                                        <colgroup>
+                                            <col style="width:30%">
+                                            <col style="width:15%">
+                                            <col style="width:12%">
+                                            <col style="width:13%">
+                                            <col style="width:13%">
+                                            <col style="width:17%">
+                                        </colgroup>
+                                    <thead>
+                                        <tr>
+                                            <th>Título</th>
+                                            <th>Área</th>
+                                            <th>Prioridad</th>
+                                            <th>Fecha Inicio</th>
+                                            <th>Fecha Fin</th>
+                                            <th>Estado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($listaActivas as $a): ?>
+                                            <tr>
+                                                <td><strong><?= htmlspecialchars($a->encabezado) ?></strong></td>
+                                                <td class="texto-apagado"><?= htmlspecialchars($a->area) ?></td>
+                                                <td>
+                                                    <?php
+                                                        $clasePrioridad = match(strtolower($a->prioridad)) {
+                                                            'alta'  => 'etiqueta-alta',
+                                                            'media' => 'etiqueta-media',
+                                                            'baja'  => 'etiqueta-baja',
+                                                            default => ''
+                                                        };
+                                                    ?>
+                                                    <span class="etiqueta <?= $clasePrioridad ?>"><?= htmlspecialchars($a->prioridad) ?></span>
+                                                </td>
+                                                <td class="texto-apagado"><?= date("d/m/Y", strtotime($a->fecha_inicio)) ?></td>
+                                                <td class="texto-apagado">
+                                                    <?= $a->fecha_fin ? date("d/m/Y", strtotime($a->fecha_fin)) : '—' ?>
+                                                </td>
+                                                <td><span class="etiqueta etiqueta-proceso">Activa</span></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+                                        
+                        <!-- EN REVISIÓN -->
+                        <?php if (!empty($listaRevision)): ?>
+                            <div style="padding: 12px 16px 4px; margin-top: 8px;">
+                                <p style="font-size:11px; font-weight:700; color:#9a6400; text-transform:uppercase; letter-spacing:1px;">
+                                    En Revisión
+                                </p>
+                            </div>
+                            <div class="contenedor-tabla">
+                                <table style="table-layout:fixed; width:100%">
+                                        <colgroup>
+                                            <col style="width:30%">
+                                            <col style="width:15%">
+                                            <col style="width:12%">
+                                            <col style="width:13%">
+                                            <col style="width:13%">
+                                            <col style="width:17%">
+                                        </colgroup>
+                                    <thead>
+                                        <tr>
+                                            <th>Título</th>
+                                            <th>Área</th>
+                                            <th>Prioridad</th>
+                                            <th>Fecha Inicio</th>
+                                            <th>Fecha Fin</th>
+                                            <th>Estado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($listaRevision as $a): ?>
+                                            <tr>
+                                                <td><strong><?= htmlspecialchars($a->encabezado) ?></strong></td>
+                                                <td class="texto-apagado"><?= htmlspecialchars($a->area) ?></td>
+                                                <td>
+                                                    <?php
+                                                        $clasePrioridad = match(strtolower($a->prioridad)) {
+                                                            'alta'  => 'etiqueta-alta',
+                                                            'media' => 'etiqueta-media',
+                                                            'baja'  => 'etiqueta-baja',
+                                                            default => ''
+                                                        };
+                                                    ?>
+                                                    <span class="etiqueta <?= $clasePrioridad ?>"><?= htmlspecialchars($a->prioridad) ?></span>
+                                                </td>
+                                                <td class="texto-apagado"><?= date("d/m/Y", strtotime($a->fecha_inicio)) ?></td>
+                                                <td class="texto-apagado">
+                                                    <?= $a->fecha_fin ? date("d/m/Y", strtotime($a->fecha_fin)) : '—' ?>
+                                                </td>
+                                                <td><span class="etiqueta etiqueta-pendiente">En Revisión</span></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- COMPLETADAS -->
+                        <?php if (!empty($listaCompletadas)): ?>
+                            <div style="padding: 12px 16px 4px; margin-top: 8px;">
+                                <p style="font-size:11px; font-weight:700; color:#8f98b2; text-transform:uppercase; letter-spacing:1px;">
+                                    Completadas
+                                </p>
+                            </div>
+                            <div class="contenedor-tabla">
+                                <table style="table-layout:fixed; width:100%">
+                                        <colgroup>
+                                            <col style="width:30%">
+                                            <col style="width:15%">
+                                            <col style="width:12%">
+                                            <col style="width:13%">
+                                            <col style="width:13%">
+                                            <col style="width:17%">
+                                        </colgroup>
+                                    <thead>
+                                        <tr>
+                                            <th>Título</th>
+                                            <th>Área</th>
+                                            <th>Prioridad</th>
+                                            <th>Fecha Inicio</th>
+                                            <th>Fecha Fin</th>
+                                            <th>Estado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($listaCompletadas as $a): ?>
+                                            <tr>
+                                                <td><strong><?= htmlspecialchars($a->encabezado) ?></strong></td>
+                                                <td class="texto-apagado"><?= htmlspecialchars($a->area) ?></td>
+                                                <td>
+                                                    <?php
+                                                        $clasePrioridad = match(strtolower($a->prioridad)) {
+                                                            'alta'  => 'etiqueta-alta',
+                                                            'media' => 'etiqueta-media',
+                                                            'baja'  => 'etiqueta-baja',
+                                                            default => ''
+                                                        };
+                                                    ?>
+                                                    <span class="etiqueta <?= $clasePrioridad ?>"><?= htmlspecialchars($a->prioridad) ?></span>
+                                                </td>
+                                                <td class="texto-apagado"><?= date("d/m/Y", strtotime($a->fecha_inicio)) ?></td>
+                                                <td class="texto-apagado">
+                                                    <?= $a->fecha_fin ? date("d/m/Y", strtotime($a->fecha_fin)) : '—' ?>
+                                                </td>
+                                                <td><span class="etiqueta etiqueta-completada">Completada</span></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
         </div>
     </div>
 
     <script src="js/comun.js"></script>
     <script src="js/trabajador.js"></script>
+
+    <!-- Modal de prioridad al aceptar solicitud -->
+    <div id="modalPrioridad" class="fondo-modal">
+        <div class="modal" style="max-width:360px;">
+            <div class="modal-encabezado">
+                <div class="modal-titulo">Asignar Prioridad</div>
+                <button class="modal-cerrar" onclick="cerrarModalPrioridad()">✕</button>
+            </div>
+            <div class="modal-divisor"></div>
+            <p style="font-size:13px; color:#4d5a7a; margin-bottom:16px;">
+                Selecciona la prioridad para esta solicitud antes de aceptarla.
+            </p>
+            <form id="formAceptar" method="POST" action="php/controlador_trabajador.php">
+                <input type="hidden" name="accion" value="aceptar">
+                <input type="hidden" name="id_sol" id="modal-id-sol">
+                <div class="grupo-form">
+                    <label class="etiqueta-form" for="modal-prioridad">Prioridad</label>
+                    <select class="campo-form" id="modal-prioridad" name="prioridad" required>
+                        <option value="" disabled selected>Seleccionar...</option>
+                        <option value="Alta">Alta</option>
+                        <option value="Media">Media</option>
+                        <option value="Baja">Baja</option>
+                    </select>
+                </div>
+                <div class="modal-pie">
+                    <button type="submit" class="btn btn-primario">Confirmar</button>
+                    <button type="button" class="btn btn-fantasma" onclick="cerrarModalPrioridad()">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </body>
 </html>

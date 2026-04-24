@@ -1,6 +1,7 @@
 // Secciones de la página
 var titulosPagina = {
     solicitudes:    'Solicitudes',
+    'mis-asignaciones': 'Solicitudes Aceptadas',
     reporte:        'Reporte de Solicitud',
     notificaciones: 'Notificaciones'
 };
@@ -11,20 +12,18 @@ inicializarNavegacion(titulosPagina);
 
 // Funciones para mostrar los distintos estados de las solicitudes en la interfaz de los trabajadores
 function aceptarSolicitud(button, id) {
-    var item = button.closest('.solicitud-item');
-    item.classList.add('accepted');
-    item.classList.remove('rejected');
-    item.querySelector('.status').innerHTML = '<strong>Estado:</strong> Aceptada';
-    item.querySelector('.buttons').style.display = 'none';
-    item.querySelector('.cancel-btn').style.display = 'flex';
-
-    var title = item.querySelector('h3').textContent;
-    var user = item.querySelectorAll('.solicitud-meta span')[0].textContent.replace('Usuario: ', '');
-    var area = item.querySelectorAll('.solicitud-meta span')[1].textContent.replace('Área: ', '');
-    var date = item.querySelectorAll('.solicitud-meta span')[2].textContent.replace('Fecha: ', '');
-
-    acceptedRequests[id] = { title: title, user: user, area: area, date: date };
+    document.getElementById('modal-id-sol').value = id;
+    document.getElementById('modalPrioridad').classList.add('abierto');
 }
+
+function cerrarModalPrioridad() {
+    document.getElementById('modalPrioridad').classList.remove('abierto');
+    document.getElementById('modal-prioridad').value = '';
+}
+
+document.getElementById('modalPrioridad').addEventListener('click', function(e) {
+    if (e.target === this) cerrarModalPrioridad();
+});
 
 function rechazarSolicitud(button) {
     var item = button.closest('.solicitud-item');
@@ -51,13 +50,50 @@ function cancelarSolicitud(button, id) {
 function crearReporte(id) {
     if (acceptedRequests[id]) {
         var datos = acceptedRequests[id];
-
         navegarSeccion('reporte', titulosPagina);
 
-        document.getElementById('report-title').textContent = datos.title;
+        // Pre-rellena título
         document.getElementById('titulo-reporte').value = 'Reporte de ' + datos.title;
-        document.getElementById('descripcion-reporte').value = 'Problema relacionado con ' + datos.title + ' en el área ' + datos.area + ' para el usuario ' + datos.user + '.';
+        document.getElementById('desc-problema').value  = '';
+        document.getElementById('desc-solucion').value  = '';
+
+        // Sincroniza el select y el hidden con el id de la solicitud
+        var select = document.getElementById('select-solicitud-reporte');
+        var hidden = document.getElementById('input-id-sol-reporte');
+
+        // Agrega la opción si no existe ya
+        var existe = false;
+        for (var i = 0; i < select.options.length; i++) {
+            if (select.options[i].value == id) { existe = true; break; }
+        }
+        if (!existe) {
+            var opcion = document.createElement('option');
+            opcion.value       = id;
+            opcion.textContent = datos.title;
+            select.appendChild(opcion);
+        }
+        select.value = id;
+        hidden.value = id;
+
     } else {
         alert('Esta solicitud no está aceptada.');
     }
 }
+
+// Sincronizar hidden al cambiar el select manualmente
+document.getElementById('select-solicitud-reporte').addEventListener('change', function() {
+    document.getElementById('input-id-sol-reporte').value = this.value;
+});
+
+// Sincronizar el select de reporte con el input hidden
+var selectReporte = document.getElementById('select-solicitud-reporte');
+if (selectReporte) {
+    selectReporte.addEventListener('change', function() {
+        document.getElementById('input-id-sol-reporte').value = this.value;
+    });
+}
+
+// Si ya hay una opción seleccionada al cargar, sincronizarla
+    if (selectReporte && selectReporte.value) {
+        document.getElementById('input-id-sol-reporte').value = selectReporte.value;
+    }
