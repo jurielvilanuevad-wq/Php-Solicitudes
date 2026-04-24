@@ -21,7 +21,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $stmtCheck->bind_param("ii", $id_sol, $id_us);
         $stmtCheck->execute();
         $stmtCheck->store_result();
-
+        die("id_sol: [{$id_sol}] | id_us: [{$id_us}] | id_estado encontrado: [" . ($stmtCheck->num_rows > 0 ? "SÍ" : "NO") . "]");
         if ($stmtCheck->num_rows === 0) {
             $stmtCheck->close();
             $_SESSION["error"] = "No se puede aprobar esta solicitud.";
