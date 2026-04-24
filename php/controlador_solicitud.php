@@ -16,7 +16,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         // Verificar que la solicitud pertenece al solicitante y está en revisión
         $stmtCheck = $conexion->prepare(
-            "SELECT id_sol FROM solicitud WHERE id_sol = ? AND id_us = ? AND id_estado = 3"
+            "SELECT id_sol FROM solicitud WHERE id_sol = ? AND id_us = ? AND id_estado = 4"
         );
         $stmtCheck->bind_param("ii", $id_sol, $id_us);
         $stmtCheck->execute();
