@@ -1,3 +1,8 @@
+<?php 
+    include "php/conexion.php";
+    include "php/controlador_login.php";
+?>
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -11,11 +16,6 @@
     <div class="login-contenedor">
         <!-- max-width 420px -->
         <div class="login-tarjeta">
-
-            <?php 
-                include "php/conexion.php";
-                include "php/controlador_login.php";
-            ?>
 
             <div class="login-logo">
                 <div class="marca-emblema"><img src="img/logo_tec_.png" alt="logo del Instituto Tecnológico Superior de Rioverde" width="48"></div>
