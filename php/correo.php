@@ -16,6 +16,7 @@ function crearMailer(): PHPMailer {
     $mail->Password   = MAIL_PASSWORD;
     $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
     $mail->Port       = MAIL_PORT;
+    $mail->Timeout    = 5;
     $mail->CharSet    = 'UTF-8';
     $mail->setFrom(MAIL_FROM, MAIL_FROM_NAME);
     return $mail;
@@ -31,7 +32,7 @@ function enviarCorreo(string $destinatario, string $nombreDest, string $asunto, 
         $mail->AltBody = strip_tags($cuerpoHTML);
         $mail->send();
         return true;
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         error_log('[ITSRV-Correo] No enviado a ' . $destinatario . ': ' . $e->getMessage());
         return false;
     }
