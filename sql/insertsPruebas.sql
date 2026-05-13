@@ -86,7 +86,10 @@ INSERT INTO estado_solicitud (nombre)
     
 INSERT INTO estado_solicitud (nombre)
     VALUES ("Finalizada");
-    
+
+INSERT INTO estado_solicitud (nombre)
+    VALUES ('Reporte Rechazado');
+
 SELECT * from estado_solicitud;
 SELECT * from rol;
 SELECT * from area;
