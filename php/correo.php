@@ -23,9 +23,9 @@ function crearMailer(): PHPMailer {
 }
 
 function enviarCorreo(string $destinatario, string $nombreDest, string $asunto, string $cuerpoHTML): bool {
-    $resendKey = getenv('RESEND_API_KEY') ?: '';
-    if ($resendKey !== '') {
-        return _enviarResend($resendKey, $destinatario, $nombreDest, $asunto, $cuerpoHTML);
+    $brevoKey = getenv('BREVO_API_KEY') ?: '';
+    if ($brevoKey !== '') {
+        return _enviarBrevo($brevoKey, $destinatario, $nombreDest, $asunto, $cuerpoHTML);
     }
     try {
         $mail = crearMailer();
@@ -42,25 +42,22 @@ function enviarCorreo(string $destinatario, string $nombreDest, string $asunto, 
     }
 }
 
-function _enviarResend(string $key, string $dest, string $nombre, string $asunto, string $html): bool {
-    $from = MAIL_FROM_NAME . ' <' . MAIL_FROM . '>';
-    $to   = $nombre !== '' ? "$nombre <$dest>" : $dest;
-
+function _enviarBrevo(string $key, string $dest, string $nombre, string $asunto, string $html): bool {
     $payload = json_encode([
-        'from'    => $from,
-        'to'      => [$to],
-        'subject' => $asunto,
-        'html'    => $html,
+        'sender'      => ['name' => MAIL_FROM_NAME, 'email' => MAIL_FROM],
+        'to'          => [['email' => $dest, 'name' => $nombre]],
+        'subject'     => $asunto,
+        'htmlContent' => $html,
     ]);
 
-    $ch = curl_init('https://api.resend.com/emails');
+    $ch = curl_init('https://api.brevo.com/v3/smtp/email');
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST           => true,
         CURLOPT_POSTFIELDS     => $payload,
         CURLOPT_TIMEOUT        => 10,
         CURLOPT_HTTPHEADER     => [
-            'Authorization: Bearer ' . $key,
+            'api-key: ' . $key,
             'Content-Type: application/json',
         ],
     ]);
@@ -71,7 +68,7 @@ function _enviarResend(string $key, string $dest, string $nombre, string $asunto
     curl_close($ch);
 
     if ($code !== 200 && $code !== 201) {
-        error_log('[ITSRV-Correo/Resend] Error ' . $code . ' al enviar a ' . $dest . ': ' . ($err ?: $response));
+        error_log('[ITSRV-Correo/Brevo] Error ' . $code . ' al enviar a ' . $dest . ': ' . ($err ?: $response));
         return false;
     }
     return true;
