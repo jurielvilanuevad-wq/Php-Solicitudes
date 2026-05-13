@@ -23,6 +23,10 @@ function crearMailer(): PHPMailer {
 }
 
 function enviarCorreo(string $destinatario, string $nombreDest, string $asunto, string $cuerpoHTML): bool {
+    $resendKey = getenv('RESEND_API_KEY') ?: '';
+    if ($resendKey !== '') {
+        return _enviarResend($resendKey, $destinatario, $nombreDest, $asunto, $cuerpoHTML);
+    }
     try {
         $mail = crearMailer();
         $mail->addAddress($destinatario, $nombreDest);
@@ -36,6 +40,41 @@ function enviarCorreo(string $destinatario, string $nombreDest, string $asunto, 
         error_log('[ITSRV-Correo] No enviado a ' . $destinatario . ': ' . $e->getMessage());
         return false;
     }
+}
+
+function _enviarResend(string $key, string $dest, string $nombre, string $asunto, string $html): bool {
+    $from = MAIL_FROM_NAME . ' <' . MAIL_FROM . '>';
+    $to   = $nombre !== '' ? "$nombre <$dest>" : $dest;
+
+    $payload = json_encode([
+        'from'    => $from,
+        'to'      => [$to],
+        'subject' => $asunto,
+        'html'    => $html,
+    ]);
+
+    $ch = curl_init('https://api.resend.com/emails');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_HTTPHEADER     => [
+            'Authorization: Bearer ' . $key,
+            'Content-Type: application/json',
+        ],
+    ]);
+
+    $response = curl_exec($ch);
+    $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err      = curl_error($ch);
+    curl_close($ch);
+
+    if ($code !== 200 && $code !== 201) {
+        error_log('[ITSRV-Correo/Resend] Error ' . $code . ' al enviar a ' . $dest . ': ' . ($err ?: $response));
+        return false;
+    }
+    return true;
 }
 
 function plantillaCorreo(string $titulo, string $cuerpo): string {
