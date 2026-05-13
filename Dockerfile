@@ -1,7 +1,5 @@
 FROM php:8.2-fpm-alpine
 
-RUN apk add --no-cache nginx bash
-RUN docker-php-ext-install mysqli
 RUN apk add --no-cache nginx bash openssl && \
     docker-php-ext-install mysqli && \
     docker-php-ext-enable openssl
